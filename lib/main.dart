@@ -11,7 +11,6 @@ import 'tts.dart';
 import 'object_detector_service.dart';
 import 'settings_page.dart';
 import 'camera_service.dart';
-// import 'timer_service.dart';
 import 'ad_service.dart';
 
 void main() {
@@ -37,6 +36,7 @@ class CamLapTimerApp extends StatelessWidget {
     );
   }
 }
+
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -86,13 +86,29 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // カメラの初期化
   Future<void> _initializeCamera() async {
-    await _cameraService.initializeCamera();
-    _cameraService.controller!.startImageStream((cameraImage) {
-      _processCameraImage(cameraImage);
-    });
-    setState(() {});
+    try {
+      await _cameraService.initializeCamera();
+      if (_cameraService.controller != null) {
+        await _cameraService.controller!.startImageStream((cameraImage) {
+          _processCameraImage(cameraImage);
+        });
+        setState(() {});  // カメラが正常に初期化されたことを反映
+      } else {
+        // カメラが利用不可能な場合の処理
+        // 例: UIにエラーメッセージを表示する
+        debugPrint('カメラが利用不可能です。');
+        // エラー状態を反映するためにUIを更新する
+        setState(() {});
+      }
+    } catch (e) {
+      // カメラの初期化中にエラーが発生した場合の処理
+      debugPrint('カメラの初期化に失敗: $e');
+      // エラーメッセージをUIに表示するために状態を更新する
+      setState(() {});
+    }
   }
 
+  //カメラ検出
   void _processCameraImage(CameraImage cameraImage) async {
     final now = DateTime.now();
 
@@ -130,7 +146,6 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     });
   }
 
-
   void _clearLapTimes() {
     setState(() {
       _lapTimes.clear();
@@ -150,6 +165,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     });
   }
 
+  // ラップタイムの記録
   Future<void> _recordLapTime() async {
     // final now = DateTime.now();
     final lapDuration = _lastDetectionTime?.difference(_startTime!);
@@ -172,6 +188,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         _startTime = _lastDetectionTime;
       });
 
+      // 一定時間、前のラップタイムを表示する
       Future.delayed(const Duration(seconds: 3), () {
         setState(() {
           _currentLapTime = '';
@@ -297,6 +314,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     var milliseconds = double.parse(secondsAndMilliseconds[1]) / 100;
     return minutes * 60 + seconds + milliseconds;
   }
+
 
   // UIのbuild
   @override
