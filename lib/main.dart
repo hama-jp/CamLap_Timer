@@ -54,9 +54,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   bool _isAppForeground = true;
   bool _isTimerRunning = false;
+  bool _isBestLap = false;
   DateTime? _startTime;
   DateTime? _lastDetectionTime;
 
+
+  // 経過時間の表示用
   Duration _currentDuration = Duration.zero;
   String _currentLapTime = '';
   Timer? _timer;
@@ -108,7 +111,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
   }
 
-  //カメラ検出
+  // カメラによるタイム計測の心臓部
   void _processCameraImage(CameraImage cameraImage) async {
     final now = DateTime.now();
 
@@ -128,7 +131,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
   }
 
-  // タイマー機能
+  // 経過時間の表示用タイマー
   void _startPeriodicTimer() {
     _timer = Timer.periodic(const Duration(microseconds: 10), (Timer timer) {
       if (_isTimerRunning && _currentLapTime.isEmpty) {
@@ -182,6 +185,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         // ベストラップの更新
         if (_bestLapTime.isEmpty || _lapDurationFromString(_lapTimes.last) < _lapDurationFromString(_bestLapTime)) {
           _bestLapTime = _lapTimes.last;
+          _isBestLap = true;
         }
 
         _updateGraphData();
@@ -199,7 +203,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     // ラップタイムを読み上げる
     if (_isAppForeground && language != 'None') {
       _ttsService.setLanguage(language);
-      _ttsService.speak(_ttsFormatDuration(lapDuration!, language));
+      _ttsService.speak(_ttsFormatDuration(lapDuration!, language, _isBestLap));
+      _isBestLap = false;
     }
 
     // リストの最後までスクロール
@@ -228,14 +233,23 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     return Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
   }
 
-  String _ttsFormatDuration(Duration duration, String language) {
+  String _ttsFormatDuration(Duration duration, String language, bool isBestLap) {
     final seconds = duration.inSeconds.remainder(60);
     final tenths = (duration.inMilliseconds.remainder(1000) / 100).floor();
+    String prefix = '';
+
+    if (isBestLap) {
+      if (language == 'Japanese') {
+        prefix = 'ベストラップ！！';
+      } else if (language == 'English') {
+        prefix = 'best lap';
+      }
+    }
 
     if (language == 'Japanese') {
-      return "$seconds秒$tenths";
+      return "$prefix $seconds秒$tenths";
     } else if (language == 'English') {
-      return "$seconds point $tenths";
+      return "$prefix $seconds point $tenths";
     } else {
       return ''; // 言語が設定されていない、または音声なしの場合
     }
