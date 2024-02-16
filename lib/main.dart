@@ -58,6 +58,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   DateTime? _startTime;
   DateTime? _lastDetectionTime;
 
+  // // 最小記録時間
+  int _minMeasurementTime = 5;
 
   // 経過時間の表示用
   Duration _currentDuration = Duration.zero;
@@ -66,6 +68,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   final List<String> _lapTimes = [];
   String _bestLapTime = '';
+  List<String> _bestLapTimesStack = [];
+
   final List<FlSpot> _graphData = List.generate(20, (index) => FlSpot((index + 1).toDouble(), 0));
 
   @override
@@ -82,6 +86,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? 'Japanese';
     final threshold = prefs.getDouble('detectionSensitivity') ?? 0.005;
+    _minMeasurementTime = prefs.getInt('minMeasurementTime')!;
 
     await _ttsService.setLanguage(language);
     _objectDetectorService.setThreshold(threshold);
@@ -121,7 +126,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
     // 検出のチャタリング防止のためタイマを設定
     if (_isTimerRunning && _lastDetectionTime == null ||
-        now.difference(_lastDetectionTime!).inSeconds >= 5) {
+        now.difference(_lastDetectionTime!).inSeconds >= _minMeasurementTime) {
       final isDetect =
       await _objectDetectorService.detectObjectsFromImage(cameraImage);
       if (isDetect) {
@@ -133,7 +138,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // 経過時間の表示用タイマー
   void _startPeriodicTimer() {
-    _timer = Timer.periodic(const Duration(microseconds: 10), (Timer timer) {
+    _timer = Timer.periodic(const Duration(microseconds: 20), (Timer timer) {
       if (_isTimerRunning && _currentLapTime.isEmpty) {
         setState(() {
           _currentDuration = DateTime.now().difference(_startTime!);
@@ -153,6 +158,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     setState(() {
       _lapTimes.clear();
       _bestLapTime = '';
+      _bestLapTimesStack = [];
 
       // _graphDataを初期化
       _graphData.clear();
@@ -174,6 +180,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final lapDuration = _lastDetectionTime?.difference(_startTime!);
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? 'Japanese';
+    _minMeasurementTime = prefs.getInt('minMeasurementTime')!;
 
     // setStateの呼び出しを最小限にする
     if (_lapTimes.isEmpty || _lapTimes.last != _formatDuration(lapDuration!)) {
@@ -185,6 +192,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         // ベストラップの更新
         if (_bestLapTime.isEmpty || _lapDurationFromString(_lapTimes.last) < _lapDurationFromString(_bestLapTime)) {
           _bestLapTime = _lapTimes.last;
+          _bestLapTimesStack.add(_bestLapTime);
           _isBestLap = true;
         }
 
@@ -215,6 +223,15 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut,
         );
+      }
+    });
+  }
+
+  void _removeBestLapTime() {
+    setState(() {
+      if(_bestLapTimesStack.isNotEmpty) {
+        _bestLapTimesStack.removeLast();
+        _bestLapTime = _bestLapTimesStack.isNotEmpty ? _bestLapTimesStack.last : '';
       }
     });
   }
@@ -368,35 +385,53 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                   fontSize: 64, // フォントサイズ調整
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
+                  fontFamily: 'Arial',
                 ),
               ),
             ),
           ),
 
           const SizedBox(height: 15,),
-          // カメラビュー
-          Expanded(
-            child: _cameraService.controller == null
-                ? const Center(child: CircularProgressIndicator())
-                : CameraPreview(_cameraService.controller!),
-          ),
-          // スタート・ストップボタン
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton(
+              SizedBox(
+                height: 100,
+                child: _cameraService.controller == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : CameraPreview(_cameraService.controller!),
+              ),
+              IconButton(
+                icon: const Icon(Icons.play_arrow),
                 onPressed: _isTimerRunning ? null : _startTimer,
-                child: const Text('Start'),
+                iconSize: 80.0,
+                color: Colors.blueAccent,
               ),
               const SizedBox(width: 20),
-              ElevatedButton(
+              IconButton(
+                icon: const Icon(Icons.stop),
                 onPressed: _isTimerRunning ? _stopTimer : null,
-                child: const Text('Stop'),
+                iconSize: 80.0,
+                color: Colors.red,
               ),
+              // ElevatedButton(
+              //   onPressed: _isTimerRunning ? null : _startTimer,
+              //   child: const Text('Start'),
+              // ),
+              // const SizedBox(width: 20),
+              // ElevatedButton(
+              //   onPressed: _isTimerRunning ? _stopTimer : null,
+              //   child: const Text('Stop'),
+              // ),
               const SizedBox(width: 20),
               ElevatedButton(
                 onPressed: _clearLapTimes,
-                child: const Text('Clear Laps'),
+                child: const Text('Clear Lap List'),
+              ),
+              const SizedBox(width: 20,),
+              ElevatedButton(
+                onPressed: _removeBestLapTime,
+                child: const Text('Remove Best Lap'),
               ),
             ],
           ),

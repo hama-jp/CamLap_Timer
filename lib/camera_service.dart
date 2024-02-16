@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 class CameraService {
   CameraController? controller;
@@ -42,3 +43,4 @@ class CameraService {
     // 必要に応じて、エラーをUIに表示したり、状態を更新したりする
   }
 }
+

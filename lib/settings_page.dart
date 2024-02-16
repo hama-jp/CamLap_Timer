@@ -12,11 +12,20 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   String _selectedLanguage = 'Japanese'; // 初期値は日本語
   double _detectionSensitivity = 50; // 検出感度の初期設定
+  int _minMeasurementTime = 5; // 最短計測時間の初期値
+  late TextEditingController _measurementTimeController;
 
   @override
   void initState() {
     super.initState();
+    _measurementTimeController = TextEditingController();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    _measurementTimeController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -26,20 +35,28 @@ class _SettingsPageState extends State<SettingsPage> {
     // マッピングを使用してスライダーの値を計算
     double savedSensitivity =
         _calculateSensitivityFromThreshold(savedThreshold).clamp(0, 100);
+    int savedMinMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
     if (kDebugMode) {
       print("Loaded detectionSensitivity: $savedSensitivity");
+      print("Loaded minMeasurementTime: $savedMinMeasurementTime");
     }
+
     setState(() {
       _selectedLanguage = prefs.getString('language') ?? 'Japanese';
       _detectionSensitivity = savedSensitivity;
+      _minMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
+
+      // TextEditingControllerを更新
+      _measurementTimeController.text = _minMeasurementTime.toString();
     });
   }
 
   Future<void> _saveSettings(
-      String language, double detectionSensitivity) async {
+      String language, double detectionSensitivity, int minMeasurementTime) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('language', language);
     await prefs.setDouble('detectionSensitivity', detectionSensitivity);
+    await prefs.setInt('minMeasurementTime', minMeasurementTime);
   }
 
   // 検出感度に基づいてdetectionThresholdを計算するメソッド
@@ -61,10 +78,10 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         children: <Widget>[
           const ListTile(
-              title: Text('Language Setting',
+              title: Text('Language Setting: 言語設定',
                   style: TextStyle(fontWeight: FontWeight.bold))),
           ListTile(
-            title: const Text('Japanese'),
+            title: const Text('Japanese: 日本語'),
             leading: Radio<String>(
               value: 'Japanese',
               groupValue: _selectedLanguage,
@@ -72,12 +89,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 setState(() {
                   _selectedLanguage = value!;
                 });
-                _saveSettings(value!, _detectionSensitivity);
+                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
               },
             ),
           ),
           ListTile(
-            title: const Text('English'),
+            title: const Text('English: 英語'),
             leading: Radio<String>(
               value: 'English',
               groupValue: _selectedLanguage,
@@ -85,12 +102,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 setState(() {
                   _selectedLanguage = value!;
                 });
-                _saveSettings(value!, _detectionSensitivity);
+                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
               },
             ),
           ),
           ListTile(
-            title: const Text('None'),
+            title: const Text('None: 音声なし'),
             leading: Radio<String>(
               value: 'None',
               groupValue: _selectedLanguage,
@@ -98,7 +115,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 setState(() {
                   _selectedLanguage = value!;
                 });
-                _saveSettings(value!, _detectionSensitivity);
+                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
               },
             ),
           ),
@@ -107,11 +124,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           // 検出感度のスライダー
           const ListTile(
-              title: Text('Sensitivity Setting',
+              title: Text('Sensitivity Setting: 感度設定',
                   style: TextStyle(fontWeight: FontWeight.bold))),
           ListTile(
             title: Text(
-                '   Detection Sensitivity: ${_detectionSensitivity.round()}'),
+                '   Detection Sensitivity: 検出感度:   ${_detectionSensitivity.round()} %'),
             subtitle: Slider(
               min: 0,
               max: 100,
@@ -122,8 +139,51 @@ class _SettingsPageState extends State<SettingsPage> {
                   _detectionSensitivity = value;
                 });
                 _saveSettings(
-                    _selectedLanguage, _calculateDetectionThreshold(value));
+                    _selectedLanguage, _calculateDetectionThreshold(value), _minMeasurementTime);
               },
+            ),
+          ),
+          ListTile(
+            title: const Text('   Minimum Measurement Time (seconds): 最小記録時間'),
+            trailing: SizedBox(
+              width: 100,
+              child: TextFormField(
+                // initialValue: '$_minMeasurementTime',
+                controller: _measurementTimeController,
+                keyboardType: TextInputType.number,
+                onFieldSubmitted: (String value) {
+                  int? enteredTime = int.tryParse(value);
+                  if (enteredTime == null || enteredTime < 4) {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Invalid Value'),
+                          content: const Text('Please enter a value of 4 or more.: 4秒以上を設定してください。'),
+                          actions: <Widget>[
+                            TextButton(
+                              child: const Text('OK'),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                setState(() {
+                                  _minMeasurementTime = 4;
+                                  _measurementTimeController.text = '4';
+                                });
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  } else {
+                    setState(() {
+                      _minMeasurementTime = enteredTime;
+                      _measurementTimeController.text = value;
+                    });
+                    _saveSettings(_selectedLanguage, _detectionSensitivity, _minMeasurementTime);
+                  }
+                },
+              ),
             ),
           ),
         ],

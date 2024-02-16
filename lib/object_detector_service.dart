@@ -4,13 +4,13 @@ import 'package:flutter/foundation.dart';
 
 class ObjectDetectorService {
   final List<CameraImage> frameBuffer = [];
-  final int bufferSize = 15; // 移動平均のフレーム数　TODO: チューニングが必要
-  double detectionThreshold = 0.005; // 変化を検出するための閾値
+  final int bufferSize = 10; // 移動平均のフレーム数　TODO: チューニングが必要
+  double detectionThreshold = 0.003; // 変化を検出するための閾値
   bool detecting = false; // 検出中かどうかを示すフラグ
   final Duration resetDelay = const Duration(milliseconds: 50); // リセットまでの遅延時間
 
   void setThreshold(double threshold) {
-    detectionThreshold = threshold;
+    detectionThreshold = threshold / 3;
   }
 
   Future<bool> detectObjectsFromImage(CameraImage cameraImage) async {
@@ -56,7 +56,7 @@ class ObjectDetectorService {
 
     double diff = 0.0;
     // ピクセルのサブサンプリング設定
-    const int samplingInterval = 10;
+    const int samplingInterval = 20;
 
     // Y成分のみを使用してサブセットピクセル比較を行う
     for (int i = 0; i < prevY.length; i += samplingInterval) {
