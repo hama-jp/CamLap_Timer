@@ -392,50 +392,47 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           ),
 
           const SizedBox(height: 15,),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: 100,
-                child: _cameraService.controller == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : CameraPreview(_cameraService.controller!),
+          Card(
+            child: FittedBox(
+                fit: BoxFit.fitWidth,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 50,),
+                    SizedBox(
+                    height: 100,
+                    child: _cameraService.controller == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : CameraPreview(_cameraService.controller!),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.play_arrow),
+                    onPressed: _isTimerRunning ? null : _startTimer,
+                    iconSize: 80.0,
+                    color: Colors.blueAccent,
+                  ),
+                  const SizedBox(width: 20),
+                  IconButton(
+                    icon: const Icon(Icons.stop),
+                    onPressed: _isTimerRunning ? _stopTimer : null,
+                    iconSize: 80.0,
+                    color: Colors.red,
+                  ),
+                    const SizedBox(width: 20),
+                   ElevatedButton(
+                    onPressed: _clearLapTimes,
+                    child: const Text('Clear Lap List'),
+                  ),
+                    const SizedBox(width: 20,),
+                   ElevatedButton(
+                    onPressed: _removeBestLapTime,
+                    child: const Text('Remove Best Lap'),
+                    ),
+                    const SizedBox(width: 50,),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.play_arrow),
-                onPressed: _isTimerRunning ? null : _startTimer,
-                iconSize: 80.0,
-                color: Colors.blueAccent,
-              ),
-              const SizedBox(width: 20),
-              IconButton(
-                icon: const Icon(Icons.stop),
-                onPressed: _isTimerRunning ? _stopTimer : null,
-                iconSize: 80.0,
-                color: Colors.red,
-              ),
-              // ElevatedButton(
-              //   onPressed: _isTimerRunning ? null : _startTimer,
-              //   child: const Text('Start'),
-              // ),
-              // const SizedBox(width: 20),
-              // ElevatedButton(
-              //   onPressed: _isTimerRunning ? _stopTimer : null,
-              //   child: const Text('Stop'),
-              // ),
-              const SizedBox(width: 20),
-              ElevatedButton(
-                onPressed: _clearLapTimes,
-                child: const Text('Clear Lap List'),
-              ),
-              const SizedBox(width: 20,),
-              ElevatedButton(
-                onPressed: _removeBestLapTime,
-                child: const Text('Remove Best Lap'),
-              ),
-            ],
+            ),
           ),
-          // ラップタイムの表示
+          const SizedBox(height: 15,),
           Expanded(
             child: Row(
               children: [

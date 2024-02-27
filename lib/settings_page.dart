@@ -153,21 +153,21 @@ class _SettingsPageState extends State<SettingsPage> {
                 keyboardType: TextInputType.number,
                 onFieldSubmitted: (String value) {
                   int? enteredTime = int.tryParse(value);
-                  if (enteredTime == null || enteredTime < 4) {
+                  if (enteredTime == null || enteredTime < 2) {
                     showDialog(
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
                           title: const Text('Invalid Value'),
-                          content: const Text('Please enter a value of 4 or more.: 4秒以上を設定してください。'),
+                          content: const Text('Please enter a value of 2 or more.: 2秒以上を設定してください。'),
                           actions: <Widget>[
                             TextButton(
                               child: const Text('OK'),
                               onPressed: () {
                                 Navigator.of(context).pop();
                                 setState(() {
-                                  _minMeasurementTime = 4;
-                                  _measurementTimeController.text = '4';
+                                  _minMeasurementTime = 2;
+                                  _measurementTimeController.text = '2';
                                 });
                               },
                             ),
