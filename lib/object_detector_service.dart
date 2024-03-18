@@ -10,7 +10,7 @@ class ObjectDetectorService {
   final Duration resetDelay = const Duration(milliseconds: 50); // リセットまでの遅延時間
 
   void setThreshold(double threshold) {
-    detectionThreshold = threshold / 3;
+    detectionThreshold = threshold / 5;
   }
 
   Future<bool> detectObjectsFromImage(CameraImage cameraImage) async {
@@ -48,22 +48,43 @@ class ObjectDetectorService {
     return sum / buffer.length;
   }
 
-  double calculateImageDifference(
-      CameraImage prevImage, CameraImage currImage) {
-    // Y成分のみを取得 (YUV420フォーマットの場合)
-    final Uint8List prevY = prevImage.planes[0].bytes;
-    final Uint8List currY = currImage.planes[0].bytes;
-
-    double diff = 0.0;
-    // ピクセルのサブサンプリング設定
-    const int samplingInterval = 20;
-
-    // Y成分のみを使用してサブセットピクセル比較を行う
-    for (int i = 0; i < prevY.length; i += samplingInterval) {
-      diff += (prevY[i] - currY[i]).abs().toDouble();
-    }
-
-    // 全体のピクセル数で割る前に、サンプリング間隔で除算
-    return diff / ((prevY.length / samplingInterval) * 255.0);
+  int fastAbsDiff(int a, int b) {
+    final int diff = a - b;
+    final int mask = diff >> 31;
+    return (diff + mask) ^ mask;
   }
+
+//   double calculateImageDifference(
+//       CameraImage prevImage, CameraImage currImage) {
+//     // Y成分のみを取得 (YUV420フォーマットの場合)
+//     final Uint8List prevY = prevImage.planes[0].bytes;
+//     final Uint8List currY = currImage.planes[0].bytes;
+//
+//     double diff = 0.0;
+//     // ピクセルのサブサンプリング設定
+//     const int samplingInterval = 20;
+//
+//     // Y成分のみを使用してサブセットピクセル比較を行う
+//     for (int i = 0; i < prevY.length; i += samplingInterval) {
+//       diff += (prevY[i] - currY[i]).abs().toDouble();
+//     }
+//
+//     // 全体のピクセル数で割る前に、サンプリング間隔で除算
+//     return diff / ((prevY.length / samplingInterval) * 255.0);
+//   }
+
+    double calculateImageDifference(CameraImage prevImage, CameraImage currImage) {
+      final Uint8List prevY = prevImage.planes[0].bytes;
+      final Uint8List currY = currImage.planes[0].bytes;
+
+      int diffSum = 0;
+      const int samplingInterval = 20;
+
+      for (int i = 0; i < prevY.length; i += samplingInterval) {
+        diffSum += fastAbsDiff(prevY[i], currY[i]);
+      }
+
+      final int sampleCount = prevY.length ~/ samplingInterval;
+      return diffSum / (sampleCount * 255.0);
+    }
 }
