@@ -32,7 +32,6 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     double savedThreshold =
         prefs.getDouble('detectionSensitivity') ?? 0.05; // 0.05は中間の閾値
-    // マッピングを使用してスライダーの値を計算
     double savedSensitivity =
         _calculateSensitivityFromThreshold(savedThreshold).clamp(0, 100);
     int savedMinMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
@@ -45,8 +44,6 @@ class _SettingsPageState extends State<SettingsPage> {
       _selectedLanguage = prefs.getString('language') ?? 'Japanese';
       _detectionSensitivity = savedSensitivity;
       _minMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
-
-      // TextEditingControllerを更新
       _measurementTimeController.text = _minMeasurementTime.toString();
     });
   }
@@ -59,13 +56,11 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setInt('minMeasurementTime', minMeasurementTime);
   }
 
-  // 検出感度に基づいてdetectionThresholdを計算するメソッド
   double _calculateDetectionThreshold(double sensitivity) {
     return 0.1 - (sensitivity * 0.00095);
   }
 
   double _calculateSensitivityFromThreshold(double threshold) {
-    // threshold を 0.005 から 0.1 の範囲にマッピング
     return (0.1 - threshold) / 0.00095;
   }
 
@@ -76,118 +71,128 @@ class _SettingsPageState extends State<SettingsPage> {
         title: const Text('Settings'),
       ),
       body: ListView(
+        padding: const EdgeInsets.all(16.0),
         children: <Widget>[
-          const ListTile(
-              title: Text('Language Setting: 言語設定',
-                  style: TextStyle(fontWeight: FontWeight.bold))),
-          ListTile(
-            title: const Text('Japanese: 日本語'),
-            leading: Radio<String>(
-              value: 'Japanese',
-              groupValue: _selectedLanguage,
-              onChanged: (String? value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
-              },
-            ),
-          ),
-          ListTile(
-            title: const Text('English: 英語'),
-            leading: Radio<String>(
-              value: 'English',
-              groupValue: _selectedLanguage,
-              onChanged: (String? value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
-              },
-            ),
-          ),
-          ListTile(
-            title: const Text('None: 音声なし'),
-            leading: Radio<String>(
-              value: 'None',
-              groupValue: _selectedLanguage,
-              onChanged: (String? value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                _saveSettings(value!, _detectionSensitivity, _minMeasurementTime);
-              },
-            ),
-          ),
-          const SizedBox(
-            height: 24,
-          ),
-          // 検出感度のスライダー
-          const ListTile(
-              title: Text('Sensitivity Setting: 感度設定',
-                  style: TextStyle(fontWeight: FontWeight.bold))),
-          ListTile(
-            title: Text(
-                '   Detection Sensitivity: 検出感度:   ${_detectionSensitivity.round()} %'),
-            subtitle: Slider(
-              min: 0,
-              max: 100,
-              divisions: 100,
-              value: _detectionSensitivity,
-              onChanged: (double value) {
-                setState(() {
-                  _detectionSensitivity = value;
-                });
-                _saveSettings(
-                    _selectedLanguage, _calculateDetectionThreshold(value), _minMeasurementTime);
-              },
-            ),
-          ),
-          ListTile(
-            title: const Text('   Minimum Measurement Time (seconds): 最小記録時間'),
-            trailing: SizedBox(
-              width: 100,
-              child: TextFormField(
-                // initialValue: '$_minMeasurementTime',
-                controller: _measurementTimeController,
-                keyboardType: TextInputType.number,
-                onFieldSubmitted: (String value) {
-                  int? enteredTime = int.tryParse(value);
-                  if (enteredTime == null || enteredTime < 2) {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text('Invalid Value'),
-                          content: const Text('Please enter a value of 2 or more.: 2秒以上を設定してください。'),
-                          actions: <Widget>[
-                            TextButton(
-                              child: const Text('OK'),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                setState(() {
-                                  _minMeasurementTime = 2;
-                                  _measurementTimeController.text = '2';
-                                });
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  } else {
-                    setState(() {
-                      _minMeasurementTime = enteredTime;
-                      _measurementTimeController.text = value;
-                    });
-                    _saveSettings(_selectedLanguage, _detectionSensitivity, _minMeasurementTime);
-                  }
-                },
-              ),
-            ),
-          ),
+          _buildSectionTitle('Language Setting: 言語設定'),
+          _buildLanguageOption('Japanese: 日本語', 'Japanese'),
+          _buildLanguageOption('English: 英語', 'English'),
+          _buildLanguageOption('None: 音声なし', 'None'),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Sensitivity Setting: 感度設定'),
+          _buildSensitivitySlider(),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Minimum Measurement Time: 最小記録時間'),
+          _buildMeasurementTimeField(),
         ],
       ),
     );
   }
+
+  Widget _buildSectionTitle(String title) {
+    return Center(
+      child: ListTile(
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageOption(String title, String value) {
+    return Center(
+      child: ListTile(
+        title: Text(
+          title,
+          textAlign: TextAlign.center,
+        ),
+        trailing: Radio<String>(
+          value: value,
+          groupValue: _selectedLanguage,
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedLanguage = newValue!;
+            });
+            _saveSettings(newValue!, _detectionSensitivity, _minMeasurementTime);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSensitivitySlider() {
+    return Center(
+      child: ListTile(
+        title: Text(
+          'Detection Sensitivity: 検出感度: ${_detectionSensitivity.round()} %',
+          textAlign: TextAlign.center,
+        ),
+        subtitle: Slider(
+          min: 0,
+          max: 100,
+          divisions: 100,
+          value: _detectionSensitivity,
+          onChanged: (double value) {
+            setState(() {
+              _detectionSensitivity = value;
+            });
+            _saveSettings(
+                _selectedLanguage, _calculateDetectionThreshold(value), _minMeasurementTime);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeasurementTimeField() {
+    return Center(
+      child: ListTile(
+        title: const Text(
+          'Minimum Measurement Time (seconds): 最小記録時間',
+          textAlign: TextAlign.center,
+        ),
+        trailing: SizedBox(
+          width: 100,
+          child: TextFormField(
+            controller: _measurementTimeController,
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (String value) {
+              int? enteredTime = int.tryParse(value);
+              if (enteredTime == null || enteredTime < 2) {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Invalid Value'),
+                      content: const Text('Please enter a value of 2 or more.: 2秒以上を設定してください。'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('OK'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(() {
+                              _minMeasurementTime = 2;
+                              _measurementTimeController.text = '2';
+                            });
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+              } else {
+                setState(() {
+                  _minMeasurementTime = enteredTime;
+                  _measurementTimeController.text = value;
+                });
+                _saveSettings(_selectedLanguage, _detectionSensitivity, _minMeasurementTime);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
 }
+

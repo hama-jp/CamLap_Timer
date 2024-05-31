@@ -102,18 +102,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         });
         setState(() {});  // カメラが正常に初期化されたことを反映
       } else {
-        // カメラが利用不可能な場合の処理
-        // 例: UIにエラーメッセージを表示する
-        debugPrint('カメラが利用不可能です。');
-        // エラー状態を反映するためにUIを更新する
-        setState(() {});
+        _handleCameraError('カメラが利用不可能です。');
       }
     } catch (e) {
-      // カメラの初期化中にエラーが発生した場合の処理
-      debugPrint('カメラの初期化に失敗: $e');
-      // エラーメッセージをUIに表示するために状態を更新する
-      setState(() {});
+      _handleCameraError('カメラの初期化に失敗: $e');
     }
+  }
+
+  void _handleCameraError(String message) {
+    debugPrint(message);
+    setState(() {});  // エラー状態を反映するためにUIを更新
   }
 
   // カメラによるタイム計測の心臓部
@@ -138,7 +136,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // 経過時間の表示用タイマー
   void _startPeriodicTimer() {
-    _timer = Timer.periodic(const Duration(microseconds: 20), (Timer timer) {
+    _timer = Timer.periodic(const Duration(microseconds: 10000), (Timer timer) {
       if (_isTimerRunning && _currentLapTime.isEmpty) {
         setState(() {
           _currentDuration = DateTime.now().difference(_startTime!);
@@ -176,20 +174,16 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // ラップタイムの記録
   Future<void> _recordLapTime() async {
-    // final now = DateTime.now();
     final lapDuration = _lastDetectionTime?.difference(_startTime!);
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? 'Japanese';
     _minMeasurementTime = prefs.getInt('minMeasurementTime')!;
 
-    // setStateの呼び出しを最小限にする
     if (_lapTimes.isEmpty || _lapTimes.last != _formatDuration(lapDuration!)) {
       setState(() {
         _currentLapTime = _formatDuration(lapDuration!);
         _lapTimes.add(_currentLapTime);
-        // _lapTimes.add(_formatDuration(lapDuration!));
 
-        // ベストラップの更新
         if (_bestLapTime.isEmpty || _lapDurationFromString(_lapTimes.last) < _lapDurationFromString(_bestLapTime)) {
           _bestLapTime = _lapTimes.last;
           _bestLapTimesStack.add(_bestLapTime);
@@ -200,7 +194,6 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         _startTime = _lastDetectionTime;
       });
 
-      // 一定時間、前のラップタイムを表示する
       Future.delayed(const Duration(seconds: 3), () {
         setState(() {
           _currentLapTime = '';
@@ -208,14 +201,12 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       });
     }
 
-    // ラップタイムを読み上げる
     if (_isAppForeground && language != 'None') {
       _ttsService.setLanguage(language);
       _ttsService.speak(_ttsFormatDuration(lapDuration!, language, _isBestLap));
       _isBestLap = false;
     }
 
-    // リストの最後までスクロール
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -242,17 +233,20 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   // ラップタイム文字列からDurationを取得するヘルパーメソッド
   Duration _lapDurationFromString(String lapTime) {
-    final parts = lapTime.split(':');
-    final minutes = int.parse(parts[0]);
-    final secondsAndMillis = parts[1].split('.');
-    final seconds = int.parse(secondsAndMillis[0]);
-    final millis = int.parse(secondsAndMillis[1]);
-    return Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
+    final regex = RegExp(r'(\d+):(\d+)\.(\d+)');
+    final match = regex.firstMatch(lapTime);
+    if (match != null) {
+      final minutes = int.parse(match.group(1)!);
+      final seconds = int.parse(match.group(2)!);
+      final millis = int.parse(match.group(3)!);
+      return Duration(minutes: minutes, seconds: seconds, milliseconds: millis);
+    }
+    return Duration.zero;
   }
 
   String _ttsFormatDuration(Duration duration, String language, bool isBestLap) {
     final seconds = duration.inSeconds.remainder(60);
-    final tenths = (duration.inMilliseconds.remainder(1000) / 100).floor();
+    final tenths = (duration.inMilliseconds.remainder(1000) / 10).floor();
     String prefix = '';
 
     if (isBestLap) {

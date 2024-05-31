@@ -54,37 +54,24 @@ class ObjectDetectorService {
     return (diff + mask) ^ mask;
   }
 
-//   double calculateImageDifference(
-//       CameraImage prevImage, CameraImage currImage) {
-//     // Y成分のみを取得 (YUV420フォーマットの場合)
-//     final Uint8List prevY = prevImage.planes[0].bytes;
-//     final Uint8List currY = currImage.planes[0].bytes;
-//
-//     double diff = 0.0;
-//     // ピクセルのサブサンプリング設定
-//     const int samplingInterval = 20;
-//
-//     // Y成分のみを使用してサブセットピクセル比較を行う
-//     for (int i = 0; i < prevY.length; i += samplingInterval) {
-//       diff += (prevY[i] - currY[i]).abs().toDouble();
-//     }
-//
-//     // 全体のピクセル数で割る前に、サンプリング間隔で除算
-//     return diff / ((prevY.length / samplingInterval) * 255.0);
-//   }
+  double calculateImageDifference(CameraImage prevImage, CameraImage currImage) {
+    final Uint8List prevY = prevImage.planes[0].bytes;
+    final Uint8List currY = currImage.planes[0].bytes;
 
-    double calculateImageDifference(CameraImage prevImage, CameraImage currImage) {
-      final Uint8List prevY = prevImage.planes[0].bytes;
-      final Uint8List currY = currImage.planes[0].bytes;
+    int diffSum = 0;
+    const int samplingInterval = 20;
+    final int length = prevY.length;
 
-      int diffSum = 0;
-      const int samplingInterval = 20;
-
-      for (int i = 0; i < prevY.length; i += samplingInterval) {
-        diffSum += fastAbsDiff(prevY[i], currY[i]);
-      }
-
-      final int sampleCount = prevY.length ~/ samplingInterval;
-      return diffSum / (sampleCount * 255.0);
+    // ループのアンローリングを使用してパフォーマンスを向上
+    for (int i = 0; i < length; i += samplingInterval * 4) {
+      diffSum += fastAbsDiff(prevY[i], currY[i]);
+      if (i + samplingInterval < length) diffSum += fastAbsDiff(prevY[i + samplingInterval], currY[i + samplingInterval]);
+      if (i + samplingInterval * 2 < length) diffSum += fastAbsDiff(prevY[i + samplingInterval * 2], currY[i + samplingInterval * 2]);
+      if (i + samplingInterval * 3 < length) diffSum += fastAbsDiff(prevY[i + samplingInterval * 3], currY[i + samplingInterval * 3]);
     }
+
+    final int sampleCount = length ~/ samplingInterval;
+    return diffSum / (sampleCount * 255.0);
+  }
 }
+

@@ -8,24 +8,17 @@ class CameraService {
   final int retryDelay = 2;  // 再試行までの待機時間（秒）
 
   Future<void> initializeCamera() async {
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) {
+      debugPrint('利用可能なカメラが見つかりません。');
+      // UIに適切なメッセージを表示する処理をここに追加
+      return;
+    }
+
     int retries = 0;
     while (retries < maxRetries) {
       try {
-        final cameras = await availableCameras();
-        if (cameras.isEmpty) {
-          debugPrint('利用可能なカメラが見つかりません。');
-          // UIに適切なメッセージを表示する処理をここに追加
-          return;
-        }
-        final firstCamera = cameras.first;
-
-        controller = CameraController(
-          firstCamera,
-          ResolutionPreset.low,
-          imageFormatGroup: ImageFormatGroup.yuv420,
-          enableAudio: false,
-        );
-        await controller?.initialize();
+        await _initializeController(cameras.first);
         return; // 初期化が成功したらループを抜ける
       } on CameraException catch (e) {
         debugPrint('カメラの初期化に失敗しました: ${e.code}\n${e.description}');
@@ -41,6 +34,16 @@ class CameraService {
     }
     debugPrint('カメラの初期化に失敗し、再試行の最大回数に達しました。');
     // 必要に応じて、エラーをUIに表示したり、状態を更新したりする
+  }
+
+  Future<void> _initializeController(CameraDescription camera) async {
+    controller = CameraController(
+      camera,
+      ResolutionPreset.low,
+      imageFormatGroup: ImageFormatGroup.yuv420,
+      enableAudio: false,
+    );
+    await controller?.initialize();
   }
 }
 
