@@ -13,47 +13,61 @@ class _SettingsPageState extends State<SettingsPage> {
   String _selectedLanguage = 'Japanese'; // 初期値は日本語
   double _detectionSensitivity = 50; // 検出感度の初期設定
   int _minMeasurementTime = 5; // 最短計測時間の初期値
+  int _raceDurationInSeconds = 9999; // レース時間の初期値
   late TextEditingController _measurementTimeController;
+  late TextEditingController _raceDurationController;
 
   @override
   void initState() {
     super.initState();
     _measurementTimeController = TextEditingController();
+    _raceDurationController = TextEditingController();
     _loadSettings();
   }
 
   @override
   void dispose() {
     _measurementTimeController.dispose();
+    _raceDurationController.dispose();
     super.dispose();
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    double savedThreshold =
-        prefs.getDouble('detectionSensitivity') ?? 0.05; // 0.05は中間の閾値
-    double savedSensitivity =
-        _calculateSensitivityFromThreshold(savedThreshold).clamp(0, 100);
+    double savedThreshold = prefs.getDouble('detectionSensitivity') ?? 0.05; // 0.05は中間の閾値
+    double savedSensitivity = _calculateSensitivityFromThreshold(savedThreshold).clamp(0, 100);
     int savedMinMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
+    int savedRaceDuration = prefs.getInt('raceDurationInSeconds') ?? 9999;
     if (kDebugMode) {
       print("Loaded detectionSensitivity: $savedSensitivity");
       print("Loaded minMeasurementTime: $savedMinMeasurementTime");
+      print("Loaded raceDurationInSeconds: $savedRaceDuration");
     }
 
     setState(() {
       _selectedLanguage = prefs.getString('language') ?? 'Japanese';
       _detectionSensitivity = savedSensitivity;
-      _minMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
+      _minMeasurementTime = savedMinMeasurementTime;
+      _raceDurationInSeconds = savedRaceDuration;
       _measurementTimeController.text = _minMeasurementTime.toString();
+      _raceDurationController.text = _raceDurationInSeconds.toString();
     });
   }
 
-  Future<void> _saveSettings(
-      String language, double detectionSensitivity, int minMeasurementTime) async {
+  Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('language', language);
-    await prefs.setDouble('detectionSensitivity', detectionSensitivity);
-    await prefs.setInt('minMeasurementTime', minMeasurementTime);
+    await prefs.setString('language', _selectedLanguage);
+    await prefs.setDouble('detectionSensitivity', _calculateDetectionThreshold(_detectionSensitivity));
+    await prefs.setInt('minMeasurementTime', _minMeasurementTime);
+    await prefs.setInt('raceDurationInSeconds', _raceDurationInSeconds);
+
+    // デバッグ出力を追加
+    if (kDebugMode) {
+      print("Saved language: $_selectedLanguage");
+      print("Saved detectionSensitivity: ${_calculateDetectionThreshold(_detectionSensitivity)}");
+      print("Saved minMeasurementTime: $_minMeasurementTime");
+      print("Saved raceDurationInSeconds: $_raceDurationInSeconds");
+    }
   }
 
   double _calculateDetectionThreshold(double sensitivity) {
@@ -83,6 +97,9 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
           _buildSectionTitle('Minimum Measurement Time: 最小記録時間'),
           _buildMeasurementTimeField(),
+          const SizedBox(height: 24),
+          _buildSectionTitle('Race Duration: レース時間'),
+          _buildRaceDurationField(),
         ],
       ),
     );
@@ -113,8 +130,8 @@ class _SettingsPageState extends State<SettingsPage> {
           onChanged: (String? newValue) {
             setState(() {
               _selectedLanguage = newValue!;
+              _saveSettings(); // 言語変更時に設定を保存
             });
-            _saveSettings(newValue!, _detectionSensitivity, _minMeasurementTime);
           },
         ),
       ),
@@ -136,9 +153,8 @@ class _SettingsPageState extends State<SettingsPage> {
           onChanged: (double value) {
             setState(() {
               _detectionSensitivity = value;
+              _saveSettings(); // 感度変更時に設定を保存
             });
-            _saveSettings(
-                _selectedLanguage, _calculateDetectionThreshold(value), _minMeasurementTime);
           },
         ),
       ),
@@ -157,6 +173,15 @@ class _SettingsPageState extends State<SettingsPage> {
           child: TextFormField(
             controller: _measurementTimeController,
             keyboardType: TextInputType.number,
+            onChanged: (String value) {
+              int? enteredTime = int.tryParse(value);
+              if (enteredTime != null && enteredTime >= 2) {
+                setState(() {
+                  _minMeasurementTime = enteredTime;
+                  _saveSettings(); // 設定保存
+                });
+              }
+            },
             onFieldSubmitted: (String value) {
               int? enteredTime = int.tryParse(value);
               if (enteredTime == null || enteredTime < 2) {
@@ -174,6 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             setState(() {
                               _minMeasurementTime = 2;
                               _measurementTimeController.text = '2';
+                              _saveSettings(); // 設定保存
                             });
                           },
                         ),
@@ -185,8 +211,68 @@ class _SettingsPageState extends State<SettingsPage> {
                 setState(() {
                   _minMeasurementTime = enteredTime;
                   _measurementTimeController.text = value;
+                  _saveSettings(); // 設定保存
                 });
-                _saveSettings(_selectedLanguage, _detectionSensitivity, _minMeasurementTime);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRaceDurationField() {
+    return Center(
+      child: ListTile(
+        title: const Text(
+          'Race Duration (seconds): レース時間',
+          textAlign: TextAlign.center,
+        ),
+        trailing: SizedBox(
+          width: 100,
+          child: TextFormField(
+            controller: _raceDurationController,
+            keyboardType: TextInputType.number,
+            onChanged: (String value) {
+              int? enteredTime = int.tryParse(value);
+              if (enteredTime != null && enteredTime >= 10) {
+                setState(() {
+                  _raceDurationInSeconds = enteredTime;
+                  _saveSettings(); // 設定保存
+                });
+              }
+            },
+            onFieldSubmitted: (String value) {
+              int? enteredTime = int.tryParse(value);
+              if (enteredTime == null || enteredTime < 10) {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Invalid Value'),
+                      content: const Text('Please enter a value of 10 or more.: 10秒以上を設定してください。'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('OK'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(() {
+                              _raceDurationInSeconds = 10;
+                              _raceDurationController.text = '10';
+                              _saveSettings(); // 設定保存
+                            });
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+              } else {
+                setState(() {
+                  _raceDurationInSeconds = enteredTime;
+                  _raceDurationController.text = value;
+                  _saveSettings(); // 設定保存
+                });
               }
             },
           ),
@@ -195,4 +281,3 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 }
-

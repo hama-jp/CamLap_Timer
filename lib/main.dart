@@ -37,7 +37,6 @@ class CamLapTimerApp extends StatelessWidget {
   }
 }
 
-
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
@@ -52,13 +51,17 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   final TextToSpeechService _ttsService = TextToSpeechService();
   final ScrollController _scrollController = ScrollController();
 
+  // 追加: レース時間を設定するための変数
+  int _raceDurationInSeconds = 9999; // デフォルト値
+
+  bool _isRaceTimeOver = false;
   bool _isAppForeground = true;
   bool _isTimerRunning = false;
   bool _isBestLap = false;
   DateTime? _startTime;
   DateTime? _lastDetectionTime;
 
-  // // 最小記録時間
+  // 最小記録時間
   int _minMeasurementTime = 5;
 
   // 経過時間の表示用
@@ -86,7 +89,14 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     final language = prefs.getString('language') ?? 'Japanese';
     final threshold = prefs.getDouble('detectionSensitivity') ?? 0.005;
-    _minMeasurementTime = prefs.getInt('minMeasurementTime')!;
+    _minMeasurementTime = prefs.getInt('minMeasurementTime') ?? 5;
+    _raceDurationInSeconds = prefs.getInt('raceDurationInSeconds') ?? 9999; // 追加
+
+    // デバッグ出力を追加
+    print('Language: $language');
+    print('Detection Sensitivity Threshold: $threshold');
+    print('Min Measurement Time: $_minMeasurementTime');
+    print('Race Duration in Seconds: $_raceDurationInSeconds');
 
     await _ttsService.setLanguage(language);
     _objectDetectorService.setThreshold(threshold);
@@ -122,6 +132,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       return; // タイマーが停止している場合は処理を行わない
     }
 
+    // 追加: レース時間が経過したかどうかをチェック
+    if (_isRaceTimeOver) {
+      _stopTimer(); // レース時間が経過したらタイマーを停止
+      _ttsService.speak("タイムオーバー");
+      return;
+    }
+
     // 検出のチャタリング防止のためタイマを設定
     if (_isTimerRunning && _lastDetectionTime == null ||
         now.difference(_lastDetectionTime!).inSeconds >= _minMeasurementTime) {
@@ -147,8 +164,41 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   void _startTimer() {
     setState(() {
-      _isTimerRunning = true;
-      _startTime = DateTime.now();
+      _isRaceTimeOver = false;
+    });
+    _countdownAndStart();
+  }
+
+  void _countdownAndStart() {
+    int countdown = 3;
+
+    Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+      if (countdown > 0) {
+        setState(() {
+          _currentLapTime = countdown.toString();
+        });
+        _ttsService.speak(countdown.toString());
+        countdown--;
+      } else {
+        timer.cancel();
+        setState(() {
+          _isTimerRunning = true;
+          _startTime = DateTime.now();
+          _currentLapTime = '';
+        });
+        _ttsService.speak("スタート");
+        _startRaceTimer();
+      }
+    });
+  }
+
+  void _startRaceTimer() {
+    Timer(Duration(seconds: _raceDurationInSeconds), () {
+      setState(() {
+        _isRaceTimeOver = true;
+      });
+      _ttsService.speak("タイムオーバー");
+      _stopTimer();
     });
   }
 
@@ -220,7 +270,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   void _removeBestLapTime() {
     setState(() {
-      if(_bestLapTimesStack.isNotEmpty) {
+      if (_bestLapTimesStack.isNotEmpty) {
         _bestLapTimesStack.removeLast();
         _bestLapTime = _bestLapTimesStack.isNotEmpty ? _bestLapTimesStack.last : '';
       }
@@ -340,7 +390,6 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     return minutes * 60 + seconds + milliseconds;
   }
 
-
   // UIのbuild
   @override
   Widget build(BuildContext context) {
@@ -349,7 +398,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       appBar: AppBar(
         leading: Container(
           padding: const EdgeInsets.all(8.0),
-          child:Image.asset('assets/icon.png'),
+          child: Image.asset('assets/icon.png'),
         ),
         title: const Text('CamLap Timer'),
         actions: <Widget>[
@@ -359,7 +408,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
+              ).then((_) {
+                // 設定画面から戻った後に設定を再読み込み
+                _loadSettingsAndSetLanguage();
+              });
             },
           ),
         ],
@@ -368,7 +420,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       body: Column(
         children: <Widget>[
           _adService.getBannerAdWidget(),
-          // 最新のラップタイムとベストラップタイムの表示
+          // 最新のップタイムとベストラップを表示
           Card(
             child: FittedBox(
               fit: BoxFit.fitWidth,
@@ -384,15 +436,14 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
               ),
             ),
           ),
-
           const SizedBox(height: 15,),
           Card(
             child: FittedBox(
-                fit: BoxFit.fitWidth,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 50,),
-                    SizedBox(
+              fit: BoxFit.fitWidth,
+              child: Row(
+                children: [
+                  const SizedBox(width: 50,),
+                  SizedBox(
                     height: 100,
                     child: _cameraService.controller == null
                         ? const Center(child: CircularProgressIndicator())
@@ -411,17 +462,17 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                     iconSize: 80.0,
                     color: Colors.red,
                   ),
-                    const SizedBox(width: 20),
-                   ElevatedButton(
+                  const SizedBox(width: 20),
+                  ElevatedButton(
                     onPressed: _clearLapTimes,
                     child: const Text('Clear Lap List'),
                   ),
-                    const SizedBox(width: 20,),
-                   ElevatedButton(
+                  const SizedBox(width: 20,),
+                  ElevatedButton(
                     onPressed: _removeBestLapTime,
                     child: const Text('Remove Best Lap'),
-                    ),
-                    const SizedBox(width: 50,),
+                  ),
+                  const SizedBox(width: 50,),
                 ],
               ),
             ),
@@ -431,17 +482,15 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
             child: Row(
               children: [
                 Expanded(
-                  child:ListView.builder(
+                  child: ListView.builder(
                     controller: _scrollController,
                     itemCount: _lapTimes.length,
                     itemBuilder: (context, index) {
                       // ラップタイムの色設定
                       Color iconColor = Colors.black;
                       if (index > 0) {
-                        final previousDuration =
-                        _lapDurationFromString(_lapTimes[index - 1]);
-                        final currentDuration =
-                        _lapDurationFromString(_lapTimes[index]);
+                        final previousDuration = _lapDurationFromString(_lapTimes[index - 1]);
+                        final currentDuration = _lapDurationFromString(_lapTimes[index]);
                         if (currentDuration < previousDuration) {
                           // ラップタイムが短くなった場合
                           iconColor = Colors.green;
@@ -460,9 +509,9 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                               Text(
                                 'Lap ${index + 1}: ${_lapTimes[index]}',
                                 style: const TextStyle(
-                                    fontSize: 18.0,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black
+                                  fontSize: 18.0,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
                                 ),
                               ),
                             ],
@@ -473,9 +522,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                   ),
                 ),
                 Expanded(
-                    child: LineChart(
-                      _lapTimeChartData(),
-                    ))
+                  child: LineChart(
+                    _lapTimeChartData(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -488,7 +538,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.paused) {
-      // アプリがバックグラウンドに移行
+      // アプがバックグラウンドに移行
       _isAppForeground = false;
     } else if (state == AppLifecycleState.resumed) {
       // アプリがフォアグラウンドに戻る
